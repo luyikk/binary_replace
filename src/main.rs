@@ -28,28 +28,60 @@ fn main() {
         (ro_data.shdr.addr, ro_data.shdr.size, ro_data.data.clone())
     };
 
+    let mut ok_str="".to_string();
+    let mut fail_str="".to_string();
+
     let names=get_strings(offset as usize,&buff);
     let mut write_table=vec![];
     for name in names.iter() {
+        let mut info="".to_string();
         for p in names_dict.iter() {
-            if let Some(index)=name.context.find(&p[..]){
-               let c=name.context.as_bytes()[index-1];
-               if c >=48 && c<=57 {
-                   let mut data = Vec::with_capacity(name.len);
-                   for _ in 0..name.len {
-                       data.push(rand::thread_rng().gen_range(1..255))
-                   }
-                   println!("{}->{:?}", name.context, data);
-                   write_table.push(WriteStr {
-                       start: name.offset,
-                       size: name.len,
-                       data
-                   });
+            if let Some(index)=name.context.find(&p[..]) {
+                if index == 0 {
+                    info = format!("fail1[{}]:{}\r\n",p, name.context);
+                    continue;
+                }
 
-                   continue;
-               }
+                let buff = name.context.as_bytes();
+                let c = buff[index - 1];
+                if c >= 48 && c <= 57 {
+                    let mut data = Vec::with_capacity(name.len);
+                    for _ in 0..name.len {
+                        data.push(rand::thread_rng().gen_range(1..255))
+                    }
+                    info = format!("OK:{}->{:?}\r\n", name.context, data);
+                    write_table.push(WriteStr {
+                        start: name.offset,
+                        size: name.len,
+                        data
+                    });
+                    break;
+                } else {
+                    info=format!("fail2 [{}]:{}\r\n",p, name.context);
+                    continue;
+                }
             }
         }
+
+        if info!=""{
+            if info.contains("OK"){
+                ok_str+=&info;
+            }else{
+                fail_str+=&info;
+            }
+        }
+    }
+
+    if ok_str !="" {
+        let mut x = fs::File::create(format!("{}.OKLog.txt", path)).unwrap();
+        x.write_all(ok_str.as_bytes()).unwrap();
+        drop(x);
+    }
+
+    if fail_str !="" {
+        let mut x = fs::File::create(format!("{}.FailLog.txt", path)).unwrap();
+        x.write_all(fail_str.as_bytes()).unwrap();
+        drop(x);
     }
 
     if write_table.len()==0{
